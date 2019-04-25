@@ -3,6 +3,7 @@ import logging
 import json
 import requests
 from hashlib import sha1
+import random
 
 app = Flask(__name__)
 
@@ -24,9 +25,11 @@ functions_that_work_good = [
     ]
 
 functions_that_work_worst = [
-    'rand name - случайное имя(~)',
-    'rand advice - случайный совет(~)',
-    'check day - проверка на праздник (~)'
+    'rand name - случайное имя (~)',
+    'rand advice - случайный совет (~)',
+    'check day - проверка на праздник (~)',
+    'check pass {pass} - проверка пароля по базам (~)',
+    'donald - случайные фразы Трампа о других (~)'
     ]
 
 functions_that_work_worst = sorted(functions_that_work_worst)
@@ -184,10 +187,13 @@ def handle_dialog(res, req):
     elif 'check pass' in req['request']['command'].lower():
         res['response']['text'] = "Введите пароль, и я проверю его по базам данных."
         k = check_password(req['request']['command'])
+
         if k == 0:
             res['response']['text'] = "Очень хорошо, я не нашла твоего пароля в базах. Но ты все равно будь аккуратен.".format(k)
+
         elif k <= 100:
             res['response']['text'] = "Я нашла твой пароль в базах {} раз, это в принципе нормально, но я рекомендую тебе сменить пароль".format(k)
+
         elif k > 100:
             res['response']['text'] = "Я нашла твой пароль в базах {} раз, я рекомендую тебе сменить пароль.".format(k)
         res['response']['buttons'] = [
@@ -204,10 +210,39 @@ def handle_dialog(res, req):
         res['response']['text'] = 'Donald Trump about {}.\n{}'.format(todos['tags'][0], todos['value'])
         res['response']['buttons'] = [
                 {
-                    'title': 'Команды',
-                    'hide': True
+                    'title' : 'Команды',
+                    'hide' : True
+                },
+                {
+                    'title' : 'Показать высказывание в Twitter',
+                    'hide' : True,
+                    'url' : todos["_embedded"]["source"]["url"]
                 }
             ]
+
+
+    elif 'news' in req['request']['command'].lower():
+        url = ('https://newsapi.org/v2/top-headlines?'
+               'country=us&'
+               'apiKey=2412173a48da404d8e4088f2c8bc05be')
+
+        response = requests.get(url)
+        d = response.json()
+        x = random.randint(0, len(d['articles']))
+
+        res['response']['text'] = d['articles'][x]['title']
+        res['response']['buttons'] = [
+                {
+                    'title' : 'Команды',
+                    'hide' : True
+                },
+                {
+                    'title' : 'Источник',
+                    'hide' : True,
+                    'url' : d['articles'][x]['url']
+                }
+            ]
+
 
 def get_first_name(req):
     # перебираем сущности
