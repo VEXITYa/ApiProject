@@ -1,21 +1,33 @@
 from flask import Flask, request
 import logging
 import json
-import random
 import requests
+from hashlib import sha1
 
 app = Flask(__name__)
 
 logging.basicConfig(level=logging.INFO)
 
+
 sessionStorage = {}
 
-functions_that_work_good = ['joke - случайная шутка', 'bitcoin rate - курс биткоина'
-                            ]
+HEADERS = {
+    'user-agent': 'pypi.org/project/haveibeenpwnd/ v0.1',
+    'api-version': 2
+    }
 
-functions_that_work_worst = ['rand name - случайное имя(~)', 'rand advice - случайный совет(~)',
-                             'check day - проверка на праздник (~)'
-                             ]
+range_url = 'https://api.pwnedpasswords.com/range/{}'
+
+functions_that_work_good = [
+    'joke - случайная шутка',
+    'bitcoin rate - курс биткоина'
+    ]
+
+functions_that_work_worst = [
+    'rand name - случайное имя(~)',
+    'rand advice - случайный совет(~)',
+    'check day - проверка на праздник (~)'
+    ]
 
 functions_that_work_worst = sorted(functions_that_work_worst)
 functions_that_work_good = sorted(functions_that_work_good)
@@ -41,11 +53,11 @@ def handle_dialog(res, req):
 
     if req['session']['new']:
         res['response']['buttons'] = [
-            {
-                'title': 'Команды',
-                'hide': True
-            }
-        ]
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
         res['response']['text'] = 'Привет! Назови своё имя!'
         sessionStorage[user_id] = {
             'first_name': None,  # здесь будет храниться имя
@@ -97,22 +109,23 @@ def handle_dialog(res, req):
     else:
         res['response']['text'] = "Такой команды не существует."
         res['response']['buttons'] = [
-            {
-                'title': 'Команды',
-                'hide': True
-            }
-        ]
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
+
 
     if 'joke' in req['request']['command'].lower():
         response = requests.get("https://icanhazdadjoke.com/slack")
         todos = json.loads(response.text)
         res['response']['text'] = todos['attachments'][0]['fallback']
         res['response']['buttons'] = [
-            {
-                'title': 'Команды',
-                'hide': True
-            }
-        ]
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
 
 
     elif 'rand name' in req['request']['command'].lower():
@@ -120,11 +133,11 @@ def handle_dialog(res, req):
         todos = json.loads(response.text)
         res['response']['text'] = todos['name']
         res['response']['buttons'] = [
-            {
-                'title': 'Команды',
-                'hide': True
-            }
-        ]
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
 
 
     elif 'rand advice' in req['request']['command'].lower():
@@ -132,11 +145,11 @@ def handle_dialog(res, req):
         todos = json.loads(response.text)
         res['response']['text'] = todos['slip']['advice']
         res['response']['buttons'] = [
-            {
-                'title': 'Команды',
-                'hide': True
-            }
-        ]
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
 
 
     elif 'check day' in req['request']['command'].lower():
@@ -149,11 +162,11 @@ def handle_dialog(res, req):
         else:
             res['response']['text'] = 'Сегодня не праздник.'
         res['response']['buttons'] = [
-            {
-                'title': 'Команды',
-                'hide': True
-            }
-        ]
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
 
 
     elif 'bitcoin rate' in req['request']['command'].lower():
@@ -161,12 +174,40 @@ def handle_dialog(res, req):
         todos = json.loads(response.text)
         res['response']['text'] = '1 BTC = {} USD'.format(str(todos['ticker']['price']))
         res['response']['buttons'] = [
-            {
-                'title': 'Команды',
-                'hide': True
-            }
-        ]
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
 
+
+    elif 'check pass' in req['request']['command'].lower():
+        res['response']['text'] = "Введите пароль, и я проверю его по базам данных."
+        k = check_password(req['request']['command'])
+        if k == 0:
+            res['response']['text'] = "Очень хорошо, я не нашла твоего пароля в базах. Но ты все равно будь аккуратен.".format(k)
+        elif k <= 100:
+            res['response']['text'] = "Я нашла твой пароль в базах {} раз, это в принципе нормально, но я рекомендую тебе сменить пароль".format(k)
+        elif k > 100:
+            res['response']['text'] = "Я нашла твой пароль в базах {} раз, я рекомендую тебе сменить пароль.".format(k)
+        res['response']['buttons'] = [
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
+
+
+    elif 'donald' in req['request']['command'].lower():
+        response = requests.get("https://api.tronalddump.io/random/quote")
+        todos = json.loads(response.text)
+        res['response']['text'] = 'Donald Trump about {}.\n{}'.format(todos['tags'][0], todos['value'])
+        res['response']['buttons'] = [
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
 
 def get_first_name(req):
     # перебираем сущности
@@ -177,6 +218,23 @@ def get_first_name(req):
             # Если есть сущность с ключом 'first_name', то возвращаем её значение.
             # Во всех остальных случаях возвращаем None.
             return entity['value'].get('first_name', None)
+
+
+def check_password(password):
+    hashed_password = sha1(password.encode('utf-8')).hexdigest()
+
+    prefix = hashed_password[:5]
+    suffix = hashed_password[5:]
+
+    # only send a prefix of 5 chars to haveibeenpwnd.com
+    response = requests.get(range_url.format(prefix), HEADERS).text
+
+    for line in iter(response.splitlines()):
+        hex, _, count = line.partition(':')
+        if hex == suffix.upper():
+            return int(count)
+    else:
+        return 0
 
 
 if __name__ == '__main__':
