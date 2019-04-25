@@ -1,0 +1,183 @@
+from flask import Flask, request
+import logging
+import json
+import random
+import requests
+
+app = Flask(__name__)
+
+logging.basicConfig(level=logging.INFO)
+
+sessionStorage = {}
+
+functions_that_work_good = ['joke - случайная шутка', 'bitcoin rate - курс биткоина'
+                            ]
+
+functions_that_work_worst = ['rand name - случайное имя(~)', 'rand advice - случайный совет(~)',
+                             'check day - проверка на праздник (~)'
+                             ]
+
+functions_that_work_worst = sorted(functions_that_work_worst)
+functions_that_work_good = sorted(functions_that_work_good)
+
+
+@app.route('/post', methods=['POST'])
+def main():
+    logging.info('Request: %r', request.json)
+    response = {
+        'session': request.json['session'],
+        'version': request.json['version'],
+        'response': {
+            'end_session': False
+        }
+    }
+    handle_dialog(response, request.json)
+    logging.info('Response: %r', response)
+    return json.dumps(response)
+
+
+def handle_dialog(res, req):
+    user_id = req['session']['user_id']
+
+    if req['session']['new']:
+        res['response']['buttons'] = [
+            {
+                'title': 'Команды',
+                'hide': True
+            }
+        ]
+        res['response']['text'] = 'Привет! Назови своё имя!'
+        sessionStorage[user_id] = {
+            'first_name': None,  # здесь будет храниться имя
+            'game_started': False  # здесь информация о том, что пользователь начал игру. По умолчанию False
+        }
+        return
+
+    if 'команды' in req['request']['nlu']['tokens']:
+        res['response']['text'] = 'В нашем "проекте" мы реализовали следующие команды:'
+        for i in range(len(functions_that_work_good)):
+            res['response']['text'] += '\n' + functions_that_work_good[i]
+
+        res['response']['text'] += '\n' + '~' * 39
+
+        for i in range(len(functions_that_work_worst)):
+            res['response']['text'] += '\n' + functions_that_work_worst[i]
+
+        return
+
+
+    elif sessionStorage[user_id]['first_name'] is None:
+        first_name = get_first_name(req)
+
+        if first_name is None:
+            res['response']['text'] = 'Не расслышала имя. Повтори, пожалуйста!'
+            res['response']['buttons'] = [
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
+
+
+        else:
+            sessionStorage[user_id]['first_name'] = first_name
+            # создаём пустой массив, в который будем записывать города, которые пользователь уже отгадал
+            sessionStorage[user_id]['guessed_cities'] = []
+            # как видно из предыдущего навыка, сюда мы попали, потому что пользователь написал своем имя.
+            # Предлагаем ему сыграть и два варианта ответа "Да" и "Нет".
+            res['response']['text'] = f'Приятно познакомиться, {first_name.title()}.'
+            res['response']['buttons'] = [
+                {
+                    'title': 'Команды',
+                    'hide': True
+                }
+            ]
+
+
+    else:
+        res['response']['text'] = "Такой команды не существует."
+        res['response']['buttons'] = [
+            {
+                'title': 'Команды',
+                'hide': True
+            }
+        ]
+
+    if 'joke' in req['request']['command'].lower():
+        response = requests.get("https://icanhazdadjoke.com/slack")
+        todos = json.loads(response.text)
+        res['response']['text'] = todos['attachments'][0]['fallback']
+        res['response']['buttons'] = [
+            {
+                'title': 'Команды',
+                'hide': True
+            }
+        ]
+
+
+    elif 'rand name' in req['request']['command'].lower():
+        response = requests.get("https://uinames.com/api/?region=russia")
+        todos = json.loads(response.text)
+        res['response']['text'] = todos['name']
+        res['response']['buttons'] = [
+            {
+                'title': 'Команды',
+                'hide': True
+            }
+        ]
+
+
+    elif 'rand advice' in req['request']['command'].lower():
+        response = requests.get("https://api.adviceslip.com/advice")
+        todos = json.loads(response.text)
+        res['response']['text'] = todos['slip']['advice']
+        res['response']['buttons'] = [
+            {
+                'title': 'Команды',
+                'hide': True
+            }
+        ]
+
+
+    elif 'check day' in req['request']['command'].lower():
+        response = requests.get("https://datazen.katren.ru/calendar/day/")
+        todos = json.loads(response.text)
+
+        if todos['holiday']:
+            res['response']['text'] = 'Сегодня праздник.'
+
+        else:
+            res['response']['text'] = 'Сегодня не праздник.'
+        res['response']['buttons'] = [
+            {
+                'title': 'Команды',
+                'hide': True
+            }
+        ]
+
+
+    elif 'bitcoin rate' in req['request']['command'].lower():
+        response = requests.get("https://api.cryptonator.com/api/ticker/btc-usd")
+        todos = json.loads(response.text)
+        res['response']['text'] = '1 BTC = {} USD'.format(str(todos['ticker']['price']))
+        res['response']['buttons'] = [
+            {
+                'title': 'Команды',
+                'hide': True
+            }
+        ]
+
+
+def get_first_name(req):
+    # перебираем сущности
+    for entity in req['request']['nlu']['entities']:
+        # находим сущность с типом 'YANDEX.FIO'
+
+        if entity['type'] == 'YANDEX.FIO':
+            # Если есть сущность с ключом 'first_name', то возвращаем её значение.
+            # Во всех остальных случаях возвращаем None.
+            return entity['value'].get('first_name', None)
+
+
+if __name__ == '__main__':
+    app.run()
