@@ -29,7 +29,8 @@ functions_that_work_worst = [
     'rand advice - случайный совет (~)',
     'check day - проверка на праздник (~)',
     'check pass {pass} - проверка пароля по базам (~)',
-    'donald - случайные фразы Трампа о других (~)'
+    'donald - случайные фразы Трампа о других (~)',
+    'news - горячие новости (~)'
     ]
 
 functions_that_work_worst = sorted(functions_that_work_worst)
@@ -73,7 +74,7 @@ def handle_dialog(res, req):
         for i in range(len(functions_that_work_good)):
             res['response']['text'] += '\n' + functions_that_work_good[i]
 
-        res['response']['text'] += '\n' + '~' * 39
+        res['response']['text'] += '\n' + '#' * 20
 
         for i in range(len(functions_that_work_worst)):
             res['response']['text'] += '\n' + functions_that_work_worst[i]
@@ -185,8 +186,7 @@ def handle_dialog(res, req):
 
 
     elif 'check pass' in req['request']['command'].lower():
-        res['response']['text'] = "Введите пароль, и я проверю его по базам данных."
-        k = check_password(req['request']['command'])
+        k = check_password(req['request']['command'].split()[-1])
 
         if k == 0:
             res['response']['text'] = "Очень хорошо, я не нашла твоего пароля в базах. Но ты все равно будь аккуратен.".format(k)
@@ -219,6 +219,7 @@ def handle_dialog(res, req):
                     'url' : todos["_embedded"]["source"]["url"]
                 }
             ]
+
 
 
     elif 'news' in req['request']['command'].lower():
